@@ -44,6 +44,7 @@ function move {
                     fi
                 done
             done
+		generate_cube
             ;;
         s) # Движение вниз
             for ((j=1; j<=4; j++)); do
@@ -64,6 +65,7 @@ function move {
                     fi
                 done
             done
+		generate_cube
             ;;
         a) # Движение влево
             for ((i=1; i<=4; i++)); do
@@ -84,6 +86,7 @@ function move {
                 fi
             done
         done
+	generate_cube
         ;;
     d) # Движение вправо
         for ((i=1; i<=4; i++)); do
@@ -105,6 +108,7 @@ function move {
                 fi
             done
         done
+	generate_cube
         ;;
     q) # Выход из игры
         exit
@@ -114,56 +118,73 @@ function move {
         sleep 1
         ;;
 esac
-generate_cube
 }
-function check_game_over {
-	# Если все ячейки на поле заполнены и нет возможности объединить кубики - конец игры
-	for ((i=1; i<=4; i++)); do
-		for ((j=1; j<=4; j++)); do
-			if [[ {board[i,$j]} == 0 ]]; then
-				return 1 # Продолжаем игру
-			elif [[ $i -lt 4 && ${board[$i,$j]} == ${board[$((i+1)),$j]} ]]; then
-				return 1 # Продолжаем игру
-			elif [[ $i -lt 4 && ${board[$i,$j]} == ${board[$i,$((j+1))]} ]]; then
-				return 1 # Продолжаем игру
-			fi
-		done
-	done
 
-	echo "Игра окончена!"
-	exit
-}
 function check_game_win {
 	#Функция для проверки выигрыша. Если на поле есть кубик со значением 2048, игрок выиграл игру.
     for ((i=1; i<=4; i++)); do
         for ((j=1; j<=4; j++)); do
             if [[ ${board[$i,$j]} == 2048 ]]; then
-                echo "Вы выиграли!"
+                echo "You Win!"
                 exit
             fi
         done
     done
 }
 function generate_cube {
-	#Функция для генерации нового кубика с вероятностью 50% на пустом месте на игровом поле.
-    while true; do
-        x=$(( RANDOM % 4 + 1 ))
-        y=$(( RANDOM % 4 + 1 ))
-        if [[ ${board[$x,$y]} == 0 ]]; then
-            board[$x,$y]=$(( RANDOM % 2 ? 4 : 2 )) # С вероятностью 50% генерируем 2 или 4
-            echo "Сгенерирован кубик ${board[$x,$y]} на позиции $x,$y"
-            break
-        fi
+    # Создание массива свободных ячеек
+    free_cells=()
+    for ((i=1; i<=4; i++)); do
+        for ((j=1; j<=4; j++)); do
+            # Если ячейка пуста (имеет значение 0), добавляем ее в массив свободных ячеек
+            if [[ ${board[$i,$j]} == 0 ]]; then
+                free_cells+=("$i,$j")
+            # Иначе, если ячейку можно сложить с кубиком, также добавляем ее в массив свободных ячеек
+            elif [[ $i -gt 1 && ${board[$((i-1)),$j]} == ${board[$i,$j]} ]] ||
+                 [[ $i -lt 4 && ${board[$((i+1)),$j]} == ${board[$i,$j]} ]] ||
+                 [[ $j -gt 1 && ${board[$i,$((j-1))]} == ${board[$i,$j]} ]] ||
+                 [[ $j -lt 4 && ${board[$i,$((j+1))]} == ${board[$i,$j]} ]]; then
+                free_cells+=("$i,$j")
+            fi
+        done
     done
+
+    # Если нет свободных ячеек для генерации нового кубика, выводим сообщение "Game over." и завершаем игру
+    if [[ ${#free_cells[@]} == 0 ]]; then
+        echo "Game over."
+        exit 1
+    # Иначе, генерируем новый кубик на случайной свободной ячейке
+    else
+        while true; do
+            # Выбираем случайную свободную ячейку из массива свободных ячеек
+            idx=$((RANDOM % ${#free_cells[@]}))
+            row=${free_cells[idx]%,*}
+            col=${free_cells[idx]#*,}
+            # Задаем значение нового кубика (2 или 4)
+            value=$((RANDOM % 2 ? 2 : 4))
+            # Если выбранная ячейка пуста, помещаем в нее новый кубик и выходим из цикла
+            if [[ ${board[$row,$col]} == 0 ]]; then
+                board[$row,$col]=$value
+                break
+            # Иначе, если выбранная ячейка уже занята, удаляем ее из массива свободных ячеек и продолжаем цикл
+            else
+                unset free_cells[$idx]
+                free_cells=("${free_cells[@]}")
+                # Если больше нет свободных ячеек для генерации нового кубика, выводим сообщение "Game over." и завершаем игру
+                if [[ ${#free_cells[@]} == 0 ]]; then
+                    echo "Game over."
+                    exit 1
+                fi
+            fi
+        done
+    fi
 }
-#Бесконечный цикл, который вызывает функцию для генерации нового кубика и вывода игрового поля. Затем входит во внутренний бесконечный цикл, который обрабатывает ходы пользователя, выводит игровое поле и проверяет условия окончания или выигрыша игры. Если игра закончилась или пользователь выиграл, внутренний цикл прерывается, и игра начинается снова.
 while true; do
 	generate_cube
 	print_board
 	while true; do
 		move
 		print_board
-		check_game_over
         	check_game_win
 	done
 done
